@@ -663,6 +663,12 @@ class ConfigManager:
             # Notifications
             'discord_webhook': os.getenv('DISCORD_WEBHOOK_URL', ''),
             'discord_enabled': bool(os.getenv('DISCORD_WEBHOOK_URL', '')),
+            'telegram_bot_token': os.getenv('TELEGRAM_BOT_TOKEN', ''),
+            'telegram_chat_id': os.getenv('TELEGRAM_CHAT_ID', ''),
+            'telegram_enabled': bool(
+                os.getenv('TELEGRAM_BOT_TOKEN', '')
+                and os.getenv('TELEGRAM_CHAT_ID', '')
+            ),
             
             # Service Endpoints
             'frontend_domain': os.getenv('FRONTEND_DOMAIN', 'http://localhost:3222'),

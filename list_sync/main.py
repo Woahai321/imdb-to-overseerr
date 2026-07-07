@@ -25,6 +25,7 @@ from .database import (
     start_sync_in_db, end_sync_in_db, add_item_to_sync, update_sync_lists_in_db
 )
 from .notifications.discord import send_to_discord_webhook
+from .notifications.telegram import send_to_telegram
 from .providers import get_provider, get_available_providers, SyncCancelledException
 from .ui.cli import handle_menu_choice, manage_lists
 from .ui.display import (
@@ -1228,8 +1229,9 @@ def automated_sync(
             summary_text = str(sync_results)
             display_summary(sync_results)
             
-            # Send to Discord webhook if configured
+            # Send notifications if configured
             send_to_discord_webhook(summary_text, sync_results, automated=automated_mode)
+            send_to_telegram(summary_text, sync_results, automated=automated_mode)
             
             """
             # OLD CODE END
@@ -1432,9 +1434,10 @@ def run_sync(
         summary_text = str(sync_results)
         display_summary(sync_results)
         
-        # Send to Discord webhook if configured
+        # Send notifications if configured
         if not dry_run:
             send_to_discord_webhook(summary_text, sync_results, automated=automated_mode)
+            send_to_telegram(summary_text, sync_results, automated=automated_mode)
         
         # Log sync complete with clear marker
         sync_end_marker = f"========== SYNC COMPLETE [FULL] - Session: {session_id} - Status: SUCCESS =========="
@@ -1607,10 +1610,13 @@ def sync_single_list(
             logging.info(f"Single list sync completed successfully: {result}")
             print(color_gradient(f"✅  Single list sync completed: {sync_results.results['requested']} requested, {sync_results.results['error']} errors", "#00ff00", "#00aa00"))
             
-            # Send to Discord webhook if configured (only if not dry run)
+            # Send notifications if configured (only if not dry run)
             if not dry_run:
                 summary_text = f"Single list sync completed for {list_type}:{list_id}"
                 send_to_discord_webhook(summary_text, sync_results, automated=True, is_single_list=True)
+                send_to_telegram(
+                    summary_text, sync_results, automated=True, is_single_list=True
+                )
             
             # Log sync complete with clear marker
             sync_end_marker = f"========== SYNC COMPLETE [SINGLE] - Session: {session_id} - List: {list_type}:{list_id} - Status: SUCCESS =========="

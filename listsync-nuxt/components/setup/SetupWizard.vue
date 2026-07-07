@@ -180,6 +180,9 @@ const formData = ref({
     timezone: 'UTC',
     discord_webhook: '',
     discord_enabled: false,
+    telegram_bot_token: '',
+    telegram_chat_id: '',
+    telegram_enabled: false,
     trakt_client_id: '',
   },
 })
@@ -198,6 +201,9 @@ const resetFormData = () => {
       timezone: 'UTC',
       discord_webhook: '',
       discord_enabled: false,
+      telegram_bot_token: '',
+      telegram_chat_id: '',
+      telegram_enabled: false,
       trakt_client_id: '',
     },
   }

@@ -101,6 +101,7 @@
           <NotificationSettings
             v-model="settings.notifications"
             @test-notification="testNotification"
+            @test-telegram="testTelegramNotification"
           />
         </div>
 
@@ -238,6 +239,9 @@ const settings = ref({
   notifications: {
     discordWebhook: '',
     enabled: false,
+    telegramBotToken: '',
+    telegramChatId: '',
+    telegramEnabled: false,
   },
   serviceEndpoints: {
     frontendDomain: '',
@@ -290,6 +294,9 @@ const loadSettings = async () => {
       settings.value.notifications = {
         discordWebhook: config.discord_webhook || '',
         enabled: config.discord_enabled || false,
+        telegramBotToken: config.telegram_bot_token || '',
+        telegramChatId: config.telegram_chat_id || '',
+        telegramEnabled: config.telegram_enabled || false,
       }
       
       settings.value.serviceEndpoints = {
@@ -339,7 +346,10 @@ const handleSave = async () => {
       // Notifications
       discord_webhook: settings.value.notifications.discordWebhook,
       discord_enabled: settings.value.notifications.enabled,
-      
+      telegram_bot_token: settings.value.notifications.telegramBotToken,
+      telegram_chat_id: settings.value.notifications.telegramChatId,
+      telegram_enabled: settings.value.notifications.telegramEnabled,
+
       // Service Endpoints
       frontend_domain: settings.value.serviceEndpoints.frontendDomain,
       backend_domain: settings.value.serviceEndpoints.backendDomain,
@@ -394,6 +404,26 @@ const testNotification = async () => {
     await api.testDiscordNotification(settings.value.notifications.discordWebhook)
     
     showSuccess('Test Sent', 'Check your Discord channel for the test notification')
+  } catch (error: any) {
+    showError('Test Failed', error.message || 'Unable to send test notification')
+  }
+}
+
+// Test Telegram notification
+const testTelegramNotification = async () => {
+  try {
+    const { telegramBotToken, telegramChatId } = settings.value.notifications
+    if (!telegramBotToken?.trim() || !telegramChatId?.trim()) {
+      showError('Credentials Required', 'Please enter a Telegram bot token and chat ID before testing')
+      return
+    }
+
+    showInfo('Sending Test', 'Sending test notification...')
+
+    const api = useApiService()
+    await api.testTelegramNotification(telegramBotToken, telegramChatId)
+
+    showSuccess('Test Sent', 'Check your Telegram chat for the test notification')
   } catch (error: any) {
     showError('Test Failed', error.message || 'Unable to send test notification')
   }

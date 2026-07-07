@@ -563,6 +563,46 @@ POST /api/timezone/validate
 
 Validates a timezone identifier.
 
+## 🔔 Notifications
+
+### Test Discord Notification
+```http
+POST /api/notifications/test
+```
+
+**Request Body**:
+```json
+{
+  "webhook_url": "https://discord.com/api/webhooks/..."
+}
+```
+
+Sends a test message to the Discord webhook. Falls back to the `DISCORD_WEBHOOK_URL` environment variable when no webhook is provided.
+
+### Test Telegram Notification
+```http
+POST /api/notifications/telegram/test
+```
+
+**Request Body**:
+```json
+{
+  "bot_token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
+  "chat_id": "-1001234567890"
+}
+```
+
+Sends a test message via the Telegram Bot API. Falls back to the `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` environment variables when credentials are not provided.
+
+**Response** (both endpoints):
+```json
+{
+  "success": true,
+  "message": "Test notification sent successfully!",
+  "timestamp": "2024-01-15 10:30:00"
+}
+```
+
 ## 📁 Response Formats
 
 ### Standard Success Response 

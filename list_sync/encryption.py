@@ -167,6 +167,7 @@ SENSITIVE_KEYS = {
     'overseerr_api_key',
     'trakt_client_id',
     'discord_webhook',
+    'telegram_bot_token',
     'tmdb_key',
 }
 

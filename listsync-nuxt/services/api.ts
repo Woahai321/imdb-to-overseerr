@@ -335,6 +335,16 @@ export class ApiService {
     })
   }
 
+  async testTelegramNotification(botToken: string, chatId: string): Promise<{ success: boolean; message: string; timestamp: string }> {
+    return this.request<{ success: boolean; message: string; timestamp: string }>('/notifications/telegram/test', {
+      method: 'POST',
+      body: JSON.stringify({
+        bot_token: botToken,
+        chat_id: chatId
+      })
+    })
+  }
+
   // ==========================================
   // Logs
   // ==========================================
