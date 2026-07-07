@@ -540,7 +540,26 @@ Returns Overseerr configuration details.
 GET /api/timezone/supported
 ```
 
-Returns list of supported timezones.
+Returns all IANA timezones available on the server (sorted by UTC offset), plus supported abbreviations organized by region.
+
+**Response**:
+```json
+{
+  "success": true,
+  "timezones": [
+    {
+      "value": "America/Sao_Paulo",
+      "label": "America/Sao_Paulo (-03)",
+      "offset": "UTC-03:00"
+    }
+  ],
+  "total_timezones": 598,
+  "regions": {
+    "North America": ["EST", "PST"]
+  },
+  "total_abbreviations": 100
+}
+```
 
 ### Get Current Timezone
 ```http

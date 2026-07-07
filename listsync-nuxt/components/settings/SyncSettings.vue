@@ -177,27 +177,29 @@ const showTimezoneDropdown = ref(false)
 const supportedTimezones = ref<any[]>([])
 const currentTimezoneInfo = ref<any>(null)
 
-// Fallback timezones if API fails
-const fallbackTimezones = [
-  { label: 'UTC', value: 'UTC', offset: '+00:00' },
-  { label: 'America/New_York (EST/EDT)', value: 'America/New_York', offset: 'UTC-05:00' },
-  { label: 'America/Chicago (CST/CDT)', value: 'America/Chicago', offset: 'UTC-06:00' },
-  { label: 'America/Denver (MST/MDT)', value: 'America/Denver', offset: 'UTC-07:00' },
-  { label: 'America/Los_Angeles (PST/PDT)', value: 'America/Los_Angeles', offset: 'UTC-08:00' },
-  { label: 'Europe/London (GMT/BST)', value: 'Europe/London', offset: 'UTC+00:00' },
-  { label: 'Europe/Paris (CET/CEST)', value: 'Europe/Paris', offset: 'UTC+01:00' },
-  { label: 'Asia/Tokyo (JST)', value: 'Asia/Tokyo', offset: 'UTC+09:00' },
-  { label: 'Australia/Sydney (AEDT)', value: 'Australia/Sydney', offset: 'UTC+11:00' },
-]
+// Fallback: IANA timezones provided by the browser if the API fails
+const getBrowserTimezones = () => {
+  try {
+    return Intl.supportedValuesOf('timeZone').map((tz) => ({
+      label: tz,
+      value: tz,
+      offset: '',
+    }))
+  } catch {
+    return [{ label: 'UTC', value: 'UTC', offset: 'UTC+00:00' }]
+  }
+}
 
 // Load supported timezones
 const loadTimezones = async () => {
   try {
     const response: any = await api.getSupportedTimezones()
-    supportedTimezones.value = response.timezones || fallbackTimezones
+    supportedTimezones.value = response.timezones?.length
+      ? response.timezones
+      : getBrowserTimezones()
   } catch (error) {
-    console.error('Error loading timezones, using fallback:', error)
-    supportedTimezones.value = fallbackTimezones
+    console.error('Error loading timezones, using browser fallback:', error)
+    supportedTimezones.value = getBrowserTimezones()
   }
 }
 
@@ -246,19 +248,6 @@ onMounted(() => {
   loadCurrentTimezoneInfo()
   timezoneSearch.value = localValue.value.timezone || ''
 })
-
-// Timezone options (common timezones)
-const timezoneOptions = [
-  { label: 'UTC', value: 'UTC' },
-  { label: 'America/New_York (EST/EDT)', value: 'America/New_York' },
-  { label: 'America/Chicago (CST/CDT)', value: 'America/Chicago' },
-  { label: 'America/Denver (MST/MDT)', value: 'America/Denver' },
-  { label: 'America/Los_Angeles (PST/PDT)', value: 'America/Los_Angeles' },
-  { label: 'Europe/London (GMT/BST)', value: 'Europe/London' },
-  { label: 'Europe/Paris (CET/CEST)', value: 'Europe/Paris' },
-  { label: 'Asia/Tokyo (JST)', value: 'Asia/Tokyo' },
-  { label: 'Australia/Sydney (AEDT/AEST)', value: 'Australia/Sydney' },
-]
 
 // Watch for external changes
 watch(

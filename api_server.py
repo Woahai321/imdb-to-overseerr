@@ -52,7 +52,8 @@ from list_sync.utils.timezone_utils import (
     get_current_timezone_info,
     get_timezone_from_env,
     normalize_timezone_input,
-    list_supported_abbreviations
+    list_supported_abbreviations,
+    get_all_timezones,
 )
 
 # Global variable to track server start time
@@ -5419,14 +5420,23 @@ async def sync_collection(franchise_name: str):
 
 @app.get("/api/timezone/supported")
 async def get_supported_timezones():
-    """Get list of all supported timezone abbreviations organized by region"""
+    """Get all IANA timezones plus supported abbreviations organized by region"""
     try:
+        timezones = get_all_timezones()
         abbreviations = list_supported_abbreviations()
+        total_abbreviations = sum(
+            len(abbrevs) for abbrevs in abbreviations.values()
+        )
         return {
             "success": True,
+            "timezones": timezones,
+            "total_timezones": len(timezones),
             "regions": abbreviations,
-            "total_abbreviations": sum(len(abbrevs) for abbrevs in abbreviations.values()),
-            "note": "Use these abbreviations in the TZ environment variable"
+            "total_abbreviations": total_abbreviations,
+            "note": (
+                "Use IANA names (preferred) or these abbreviations "
+                "in the TZ environment variable"
+            ),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

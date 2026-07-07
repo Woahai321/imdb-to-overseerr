@@ -95,8 +95,8 @@
             class="w-full px-3 py-2.5 sm:py-2 h-11 sm:h-10 bg-black/30 border border-purple-500/25 rounded-lg text-base sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all touch-manipulation"
             :disabled="isValidating"
           >
-            <option v-for="tz in commonTimezones" :key="tz" :value="tz">
-              {{ tz }}
+            <option v-for="tz in timezoneOptions" :key="tz.value" :value="tz.value">
+              {{ tz.label }}
             </option>
           </select>
         </div>
@@ -274,27 +274,34 @@ watch(() => localValue.value.trakt_client_id, () => {
   traktValidated.value = false
 })
 
-// Common timezones for quick selection
-const commonTimezones = [
-  'UTC',
-  'America/New_York',
-  'America/Chicago',
-  'America/Denver',
-  'America/Los_Angeles',
-  'America/Toronto',
-  'America/Vancouver',
-  'Europe/London',
-  'Europe/Paris',
-  'Europe/Berlin',
-  'Europe/Amsterdam',
-  'Asia/Tokyo',
-  'Asia/Shanghai',
-  'Asia/Hong_Kong',
-  'Asia/Singapore',
-  'Australia/Sydney',
-  'Australia/Melbourne',
-  'Pacific/Auckland',
-]
+// Fallback: IANA timezones provided by the browser if the API fails
+const getBrowserTimezones = () => {
+  try {
+    return Intl.supportedValuesOf('timeZone').map((tz) => ({
+      value: tz,
+      label: tz,
+    }))
+  } catch {
+    return [{ value: 'UTC', label: 'UTC' }]
+  }
+}
+
+// All IANA timezones, loaded from the API
+const timezoneOptions = ref(getBrowserTimezones())
+
+onMounted(async () => {
+  try {
+    const response: any = await api.getSupportedTimezones()
+    if (response?.timezones?.length) {
+      timezoneOptions.value = response.timezones.map((tz: any) => ({
+        value: tz.value,
+        label: `${tz.value} (${tz.offset})`,
+      }))
+    }
+  } catch (error) {
+    console.error('Error loading timezones, using browser fallback:', error)
+  }
+})
 
 // Check if we can proceed (basic validation)
 const canProceed = computed(() => {
