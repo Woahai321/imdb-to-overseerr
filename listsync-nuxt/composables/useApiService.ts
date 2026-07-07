@@ -411,6 +411,16 @@ export function useApiService() {
       })
     },
 
+    async testTelegramNotification(botToken: string, chatId: string) {
+      return apiCall(`${baseURL}/notifications/telegram/test`, {
+        method: 'POST',
+        body: {
+          bot_token: botToken,
+          chat_id: chatId
+        }
+      })
+    },
+
     // Sync History
     async getSyncHistory(
       limit: number = 50,

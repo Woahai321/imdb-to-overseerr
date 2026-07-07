@@ -58,6 +58,8 @@ export interface Config {
   automatedMode: boolean
   overseerr4K: boolean
   discordWebhookUrl?: string
+  telegramBotToken?: string
+  telegramChatId?: string
 }
 
 export interface ConnectionStatus {
@@ -88,6 +90,8 @@ export interface UpdateConfigRequest {
   automatedMode?: boolean
   overseerr4K?: boolean
   discordWebhookUrl?: string
+  telegramBotToken?: string
+  telegramChatId?: string
 }
 
 export interface ListValidation {

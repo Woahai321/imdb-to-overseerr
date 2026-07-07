@@ -6,7 +6,7 @@
         Configure Your Settings
       </h2>
       <p class="text-xs sm:text-sm text-muted-foreground max-w-xl mx-auto">
-        Set up Trakt integration, sync schedule, and optional Discord notifications.
+        Set up Trakt integration, sync schedule, and optional Discord or Telegram notifications.
       </p>
     </div>
 
@@ -184,6 +184,88 @@
       </div>
     </div>
 
+    <!-- Telegram Notifications (Optional) -->
+    <div class="p-3 sm:p-4 rounded-lg bg-gradient-to-br from-purple-600/20 to-purple-500/10 border border-purple-500/25 space-y-2.5 sm:space-y-3">
+      <div class="flex items-center justify-between mb-1">
+        <div class="flex items-center gap-2">
+          <component :is="BellIcon" :size="16" class="text-purple-400" />
+          <span class="text-xs font-bold text-purple-300 uppercase tracking-wide">Telegram (Optional)</span>
+        </div>
+        <button
+          type="button"
+          class="touch-manipulation"
+          :class="[
+            'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+            localValue.telegram_enabled ? 'bg-green-500' : 'bg-purple-500/20'
+          ]"
+          @click="localValue.telegram_enabled = !localValue.telegram_enabled"
+        >
+          <span
+            :class="[
+              'inline-block h-5 w-5 transform rounded-full bg-white transition-transform',
+              localValue.telegram_enabled ? 'translate-x-5' : 'translate-x-0.5'
+            ]"
+          />
+        </button>
+      </div>
+
+      <div v-if="localValue.telegram_enabled" class="space-y-2.5 sm:space-y-3">
+        <div>
+          <div class="flex items-center gap-1.5 mb-2">
+            <label class="text-xs font-semibold text-foreground">
+              Bot Token
+              <span class="text-red-400 ml-1">*</span>
+            </label>
+            <Tooltip content="Your Telegram bot token. Create a bot with @BotFather on Telegram to get your token.">
+              <HelpCircleIcon :size="14" class="text-purple-400/60 hover:text-purple-400 cursor-help transition-colors" />
+            </Tooltip>
+          </div>
+          <Input
+            v-model="localValue.telegram_bot_token"
+            type="password"
+            placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+            :icon="KeyIcon"
+            :disabled="isValidating || isTestingTelegram"
+          />
+          <p v-if="errors.telegram_bot_token" class="text-xs text-red-400 mt-2 flex items-center gap-1.5 animate-fade-in">
+            <component :is="AlertCircleIcon" :size="14" />
+            {{ errors.telegram_bot_token }}
+          </p>
+        </div>
+
+        <div>
+          <div class="flex items-center gap-1.5 mb-2">
+            <label class="text-xs font-semibold text-foreground">
+              Chat ID
+              <span class="text-red-400 ml-1">*</span>
+            </label>
+            <Tooltip content="The user, group or channel ID that receives the notifications. Use @userinfobot on Telegram to find your chat ID.">
+              <HelpCircleIcon :size="14" class="text-purple-400/60 hover:text-purple-400 cursor-help transition-colors" />
+            </Tooltip>
+          </div>
+          <Input
+            v-model="localValue.telegram_chat_id"
+            type="text"
+            placeholder="-1001234567890"
+            :icon="MessageSquareIcon"
+            :disabled="isValidating || isTestingTelegram"
+          />
+          <p v-if="errors.telegram_chat_id" class="text-xs text-red-400 mt-2 flex items-center gap-1.5 animate-fade-in">
+            <component :is="AlertCircleIcon" :size="14" />
+            {{ errors.telegram_chat_id }}
+          </p>
+          <p v-else-if="isTestingTelegram" class="text-xs text-purple-400 mt-2 flex items-center gap-1.5">
+            <span class="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+            Validating credentials...
+          </p>
+          <p v-else-if="telegramValidated" class="text-xs text-green-400 mt-2 flex items-center gap-1.5 animate-fade-in">
+            <component :is="CheckCircleIcon" :size="14" />
+            <span class="font-medium">Credentials validated successfully</span>
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- Action Buttons -->
     <div class="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0 pt-3 sm:pt-4 border-t border-purple-500/10">
       <Button
@@ -241,6 +323,9 @@ interface Props {
     timezone: string
     discord_webhook: string
     discord_enabled: boolean
+    telegram_bot_token: string
+    telegram_chat_id: string
+    telegram_enabled: boolean
     trakt_client_id: string
   }
   isValidating: boolean
@@ -260,8 +345,10 @@ const localValue = computed({
 
 const isTesting = ref(false)
 const isTestingTrakt = ref(false)
+const isTestingTelegram = ref(false)
 const discordValidated = ref(false)
 const traktValidated = ref(false)
+const telegramValidated = ref(false)
 
 // Reset validation state when values change
 watch(() => localValue.value.discord_webhook, () => {
@@ -269,6 +356,15 @@ watch(() => localValue.value.discord_webhook, () => {
 })
 watch(() => localValue.value.discord_enabled, () => {
   discordValidated.value = false
+})
+watch(() => localValue.value.telegram_bot_token, () => {
+  telegramValidated.value = false
+})
+watch(() => localValue.value.telegram_chat_id, () => {
+  telegramValidated.value = false
+})
+watch(() => localValue.value.telegram_enabled, () => {
+  telegramValidated.value = false
 })
 watch(() => localValue.value.trakt_client_id, () => {
   traktValidated.value = false
@@ -312,7 +408,15 @@ const canProceed = computed(() => {
   if (localValue.value.discord_enabled && !localValue.value.discord_webhook?.trim()) {
     return false
   }
-  
+
+  // If Telegram is enabled, bot token and chat ID must be provided
+  if (
+    localValue.value.telegram_enabled &&
+    (!localValue.value.telegram_bot_token?.trim() || !localValue.value.telegram_chat_id?.trim())
+  ) {
+    return false
+  }
+
   return true
 })
 
@@ -365,28 +469,70 @@ const testDiscord = async () => {
   }
 }
 
-// Handle next button click - always validate Trakt and Discord if enabled
+// Test Telegram credentials
+const testTelegram = async () => {
+  if (!localValue.value.telegram_bot_token || !localValue.value.telegram_chat_id) return
+
+  isTestingTelegram.value = true
+  telegramValidated.value = false
+
+  try {
+    await api.testTelegramNotification(
+      localValue.value.telegram_bot_token,
+      localValue.value.telegram_chat_id
+    )
+    telegramValidated.value = true
+    return true
+  } catch (error: any) {
+    telegramValidated.value = false
+    showError('Telegram Test Failed', error.message || 'Failed to send test message')
+    return false
+  } finally {
+    isTestingTelegram.value = false
+  }
+}
+
+// Handle next button click - always validate Trakt and enabled notifications
 const handleNext = async () => {
   // Always validate Trakt Client ID
   const traktResult = await testTrakt()
-  
+
   // If Trakt validation failed, don't proceed
   if (!traktResult) {
     return
   }
-  
+
   // If Discord is enabled, always validate webhook
   if (localValue.value.discord_enabled && localValue.value.discord_webhook?.trim()) {
     const discordResult = await testDiscord()
-    
+
     // If validation failed, don't proceed
     if (!discordResult) {
       return
     }
   }
-  
+
+  // If Telegram is enabled, always validate credentials
+  if (
+    localValue.value.telegram_enabled &&
+    localValue.value.telegram_bot_token?.trim() &&
+    localValue.value.telegram_chat_id?.trim()
+  ) {
+    const telegramResult = await testTelegram()
+
+    // If validation failed, don't proceed
+    if (!telegramResult) {
+      return
+    }
+  }
+
   // Only proceed if validation passes
-  if (canProceed.value && traktValidated.value && (!localValue.value.discord_enabled || discordValidated.value)) {
+  if (
+    canProceed.value &&
+    traktValidated.value &&
+    (!localValue.value.discord_enabled || discordValidated.value) &&
+    (!localValue.value.telegram_enabled || telegramValidated.value)
+  ) {
     emit('next')
   }
 }

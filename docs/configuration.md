@@ -280,6 +280,10 @@ TVDB_KEY=your_tvdb_api_key_here
 # Discord webhook for sync notifications
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/123456789/abcdef...
 
+# Telegram bot for sync notifications
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+TELEGRAM_CHAT_ID=-1001234567890
+
 # Timezone for scheduling and logs
 TZ=GMT
 ```
@@ -288,6 +292,14 @@ TZ=GMT
 1. In your Discord server, go to Server Settings → Integrations → Webhooks
 2. Create a new webhook for the channel you want notifications in
 3. Copy the webhook URL to `DISCORD_WEBHOOK_URL`
+
+**Setting up Telegram notifications:**
+1. On Telegram, talk to [@BotFather](https://t.me/BotFather) and create a new bot with `/newbot`
+2. Copy the bot token to `TELEGRAM_BOT_TOKEN`
+3. Add the bot to the chat, group or channel that should receive notifications
+4. Find the chat ID (e.g., via [@userinfobot](https://t.me/userinfobot) for private chats) and set it in `TELEGRAM_CHAT_ID`
+
+Both integrations can also be configured in the dashboard (Settings → Integrations) or during the setup wizard, including a test button to validate the credentials.
 
 **Timezone Configuration:**
 - Use standard timezone identifiers (e.g., `GMT+1`, `UTC-5`)

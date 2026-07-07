@@ -2431,6 +2431,9 @@ async def save_step2_configuration(data: dict):
         - timezone: str
         - discord_webhook: str (optional)
         - discord_enabled: bool
+        - telegram_bot_token: str (optional)
+        - telegram_chat_id: str (optional)
+        - telegram_enabled: bool
     """
     try:
         from list_sync.config import ConfigManager
@@ -2536,7 +2539,21 @@ async def save_step2_configuration(data: dict):
             if not discord_webhook.startswith('https://discord.com/api/webhooks/'):
                 errors['discord_webhook'] = 'Invalid Discord webhook URL format'
             # Note: Webhook is tested by the frontend before submission, so we don't need to test again here
-        
+
+        # Validate Telegram credentials if provided
+        telegram_bot_token = data.get('telegram_bot_token', '').strip()
+        telegram_chat_id = data.get('telegram_chat_id', '').strip()
+        telegram_enabled = data.get('telegram_enabled', False)
+
+        if telegram_enabled:
+            if not telegram_bot_token:
+                errors['telegram_bot_token'] = 'Telegram bot token is required'
+            elif ':' not in telegram_bot_token:
+                errors['telegram_bot_token'] = 'Invalid Telegram bot token format'
+            if not telegram_chat_id:
+                errors['telegram_chat_id'] = 'Telegram chat ID is required'
+            # Note: Credentials are tested by the frontend before submission
+
         # If validation failed, return errors
         if errors:
             return {
@@ -2553,7 +2570,12 @@ async def save_step2_configuration(data: dict):
         if discord_webhook:
             config.save_setting('discord_webhook', discord_webhook)
             config.save_setting('discord_enabled', discord_enabled)
-        
+
+        if telegram_bot_token and telegram_chat_id:
+            config.save_setting('telegram_bot_token', telegram_bot_token)
+            config.save_setting('telegram_chat_id', telegram_chat_id)
+            config.save_setting('telegram_enabled', telegram_enabled)
+
         # Also save to sync_interval table (for compatibility)
         configure_sync_interval(sync_interval)
         
@@ -6710,7 +6732,13 @@ async def get_settings():
         discord_enabled = get_setting_safe('discord_enabled', False)
         if isinstance(discord_enabled, str):
             discord_enabled = discord_enabled.lower() in ('true', '1', 'yes')
-        
+
+        telegram_bot_token = get_setting_safe('telegram_bot_token', '', mask=True)
+        telegram_chat_id = get_setting_safe('telegram_chat_id', '')
+        telegram_enabled = get_setting_safe('telegram_enabled', False)
+        if isinstance(telegram_enabled, str):
+            telegram_enabled = telegram_enabled.lower() in ('true', '1', 'yes')
+
         frontend_domain = get_setting_safe('frontend_domain', 'http://localhost:3222')
         backend_domain = get_setting_safe('backend_domain', 'http://localhost:4222')
         nuxt_public_api_url = get_setting_safe('nuxt_public_api_url', 'http://localhost:4222')
@@ -6749,10 +6777,13 @@ async def get_settings():
             # Notifications
             "discord_webhook": discord_webhook,
             "discord_enabled": bool(discord_webhook),
-            
+            "telegram_bot_token": telegram_bot_token,
+            "telegram_chat_id": telegram_chat_id,
+            "telegram_enabled": bool(telegram_enabled),
+
             # Trakt API
             "trakt_client_id": trakt_client_id,
-            
+
             # Service Endpoints
             "frontend_domain": frontend_domain,
             "backend_domain": backend_domain,
@@ -6789,7 +6820,10 @@ async def get_settings():
             # Notifications
             "discord_webhook": '',
             "discord_enabled": False,
-            
+            "telegram_bot_token": '',
+            "telegram_chat_id": '',
+            "telegram_enabled": False,
+
             # Trakt API
             "trakt_client_id": '',
             
@@ -6966,6 +7000,73 @@ async def test_discord_notification(payload: dict = None):
         error_detail = f"Failed to send test notification: {str(e)}\n{traceback.format_exc()}"
         logging.error(error_detail)
         raise HTTPException(status_code=500, detail=f"Failed to send test notification: {str(e)}")
+
+
+@app.post("/api/notifications/telegram/test")
+async def test_telegram_notification(payload: dict = None):
+    """Send a test Telegram notification to verify bot configuration"""
+    try:
+        from list_sync.notifications.telegram import send_telegram_message
+
+        # Get Telegram credentials from request body or environment
+        bot_token = None
+        chat_id = None
+        if payload:
+            bot_token = payload.get('bot_token')
+            chat_id = payload.get('chat_id')
+
+        if not bot_token:
+            bot_token = os.getenv('TELEGRAM_BOT_TOKEN', '')
+        if not chat_id:
+            chat_id = os.getenv('TELEGRAM_CHAT_ID', '')
+
+        if not bot_token or not chat_id:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Telegram bot token and chat ID are required. Please provide "
+                    "them or set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in your "
+                    "environment variables."
+                )
+            )
+
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        message = (
+            "🧪 <b>Telegram Integration Test</b>\n\n"
+            "If you see this message, Telegram notifications are "
+            "working correctly! ✅\n\n"
+            f"<b>Test Time:</b> {current_time}\n"
+            "<b>Status:</b> ✅ Connected\n\n"
+            "<i>ListSync Notification System</i>"
+        )
+
+        send_telegram_message(bot_token, chat_id, message)
+
+        return {
+            "success": True,
+            "message": "Test notification sent successfully! Check your Telegram chat.",
+            "timestamp": current_time
+        }
+
+    except HTTPException:
+        raise
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="Telegram API request timed out")
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Failed to send Telegram notification: {str(e)}"
+        if hasattr(e, 'response') and e.response is not None:
+            error_msg += f" (Status: {e.response.status_code})"
+        raise HTTPException(status_code=500, detail=error_msg)
+    except Exception as e:
+        import traceback
+        error_detail = (
+            f"Failed to send test notification: {str(e)}\n{traceback.format_exc()}"
+        )
+        logging.error(error_detail)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to send test notification: {str(e)}"
+        )
+
 
 def enrich_historic_data_with_database(historic_items):
     """Enrich historic log data with database fields (overseerr_id, imdb_id, year, media_type)"""
