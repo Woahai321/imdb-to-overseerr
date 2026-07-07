@@ -4,8 +4,8 @@ Timezone utilities for ListSync - Support for common timezone abbreviations worl
 
 import os
 import logging
-from typing import Optional, Dict
-from datetime import datetime, timezone
+from typing import List, Optional, Dict
+from datetime import datetime, timedelta, timezone
 import zoneinfo
 
 # Comprehensive mapping of common timezone abbreviations to their full timezone names
@@ -183,6 +183,9 @@ TIMEZONE_ABBREVIATIONS: Dict[str, str] = {
     "BRT": "America/Sao_Paulo",  # Brasília Time
     "BRST": "America/Sao_Paulo", # Brasília Summer Time
     "BST": "America/Sao_Paulo",  # Brazil Summer Time (conflicts with British Summer Time)
+    "AMT": "America/Manaus",     # Amazon Time (conflicts with Armenia Time)
+    "ACT": "America/Rio_Branco",  # Acre Time (conflicts with ASEAN Common Time)
+    "FNT": "America/Noronha",    # Fernando de Noronha Time
     
     # South America - Argentina
     "ART": "America/Argentina/Buenos_Aires",
@@ -285,6 +288,27 @@ TIMEZONE_ABBREVIATIONS: Dict[str, str] = {
     "Z": "UTC",               # Zulu Time Zone (UTC+0)
 }
 
+# South American zones (used to categorize abbreviations by region,
+# since they share the "America/" prefix with North American zones)
+SOUTH_AMERICAN_TIMEZONES = {
+    "America/Argentina/Buenos_Aires",
+    "America/Asuncion",
+    "America/Bogota",
+    "America/Caracas",
+    "America/Cayenne",
+    "America/Guayaquil",
+    "America/Guyana",
+    "America/La_Paz",
+    "America/Lima",
+    "America/Manaus",
+    "America/Montevideo",
+    "America/Noronha",
+    "America/Paramaribo",
+    "America/Rio_Branco",
+    "America/Santiago",
+    "America/Sao_Paulo",
+}
+
 # Regional preference mapping for conflicting abbreviations
 REGIONAL_PREFERENCES: Dict[str, Dict[str, str]] = {
     "US": {
@@ -323,6 +347,13 @@ REGIONAL_PREFERENCES: Dict[str, Dict[str, str]] = {
     "NZ": {
         "NZST": "Pacific/Auckland",
         "NZDT": "Pacific/Auckland",
+    },
+    "BR": {
+        "BRT": "America/Sao_Paulo",
+        "AMT": "America/Manaus",
+        "ACT": "America/Rio_Branco",
+        "FNT": "America/Noronha",
+        "BST": "America/Sao_Paulo",
     }
 }
 
@@ -556,6 +587,54 @@ def get_current_timezone_info() -> Dict[str, str]:
         }
 
 
+def get_all_timezones() -> List[Dict[str, str]]:
+    """
+    Get all IANA timezones available on the system with display metadata.
+
+    Each entry contains the IANA name (``value``), a human-readable label
+    with the current abbreviation (``label``), and the current UTC offset
+    (``offset``). Zones are sorted by UTC offset, then alphabetically.
+
+    Returns:
+        List of dicts with ``value``, ``label`` and ``offset`` keys, e.g.
+        ``{"value": "America/Sao_Paulo", "label": "America/Sao_Paulo (-03)",
+        "offset": "UTC-03:00"}``
+    """
+    now = datetime.now(timezone.utc)
+    entries = []
+
+    for name in zoneinfo.available_timezones():
+        try:
+            local_now = now.astimezone(zoneinfo.ZoneInfo(name))
+        except Exception as e:
+            logging.debug(f"Skipping unloadable timezone '{name}': {e}")
+            continue
+
+        utc_offset = local_now.utcoffset() or timedelta(0)
+        total_minutes = int(utc_offset.total_seconds() // 60)
+        sign = "+" if total_minutes >= 0 else "-"
+        hours, minutes = divmod(abs(total_minutes), 60)
+        offset_str = f"UTC{sign}{hours:02d}:{minutes:02d}"
+
+        abbreviation = local_now.strftime("%Z")
+        label = f"{name} ({abbreviation})" if abbreviation else name
+
+        entries.append(
+            (
+                total_minutes,
+                name,
+                {
+                    "value": name,
+                    "label": label,
+                    "offset": offset_str,
+                },
+            )
+        )
+
+    entries.sort(key=lambda entry: (entry[0], entry[1]))
+    return [entry[2] for entry in entries]
+
+
 def list_supported_abbreviations() -> Dict[str, list]:
     """
     Get a list of all supported timezone abbreviations organized by region.
@@ -577,28 +656,26 @@ def list_supported_abbreviations() -> Dict[str, list]:
     
     # Categorize abbreviations
     for abbrev, tz_name in TIMEZONE_ABBREVIATIONS.items():
-        if tz_name.startswith("America/"):
+        if len(abbrev) == 1:  # Military single-letter codes
+            regions["Military"].append(abbrev)
+        elif abbrev in ["UTC", "GMT"]:
+            regions["Universal"].append(abbrev)
+        elif tz_name in SOUTH_AMERICAN_TIMEZONES:
+            regions["South America"].append(abbrev)
+        elif tz_name.startswith("America/"):
             regions["North America"].append(abbrev)
         elif tz_name.startswith("Europe/"):
             regions["Europe"].append(abbrev)
         elif tz_name.startswith("Asia/"):
             regions["Asia"].append(abbrev)
-        elif tz_name.startswith("Australia/") or tz_name.startswith("Pacific/Auckland"):
+        elif tz_name.startswith("Australia/") or tz_name == "Pacific/Auckland":
             regions["Australia/New Zealand"].append(abbrev)
         elif tz_name.startswith("Africa/"):
             regions["Africa"].append(abbrev)
         elif tz_name.startswith("Pacific/"):
             regions["Pacific"].append(abbrev)
-        elif len(abbrev) == 1:  # Military single-letter codes
-            regions["Military"].append(abbrev)
-        elif abbrev in ["UTC", "GMT", "Z"]:
-            regions["Universal"].append(abbrev)
         else:
-            # Determine by timezone name patterns
-            if any(continent in tz_name for continent in ["America/Argentina", "America/Sao_Paulo", "America/Santiago"]):
-                regions["South America"].append(abbrev)
-            else:
-                regions["Universal"].append(abbrev)
+            regions["Universal"].append(abbrev)
     
     # Sort each region's abbreviations
     for region in regions:

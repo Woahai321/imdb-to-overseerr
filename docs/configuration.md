@@ -290,9 +290,11 @@ TZ=GMT
 3. Copy the webhook URL to `DISCORD_WEBHOOK_URL`
 
 **Timezone Configuration:**
-- Use standard timezone identifiers (e.g., `GMT+1`, `UTC-5`)
+- Use IANA timezone names (e.g., `America/Sao_Paulo`, `Europe/London`), common abbreviations (e.g., `BRT`, `EST`, `CET`) or UTC/GMT offsets (e.g., `GMT+1`, `UTC-5`)
+- All IANA timezones are supported and can also be selected in the dashboard (Settings → Sync Settings) and in the setup wizard
+- Set `TIMEZONE_REGION` (e.g., `US`, `EU`, `BR`, `ASIA`, `AU`, `NZ`) to resolve ambiguous abbreviations like `AMT` or `IST`
 - Affects scheduling and log timestamps
-- Default: `GMT`
+- Default: `UTC`
 
 ### Performance Tuning
 
