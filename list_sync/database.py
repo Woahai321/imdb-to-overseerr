@@ -385,6 +385,28 @@ def init_database():
             # Indexes might already exist
             pass
 
+        # Reconcile orphaned sync_history rows left in_progress by a process that
+        # was killed/restarted mid-sync (container restart, OOM, crash, etc.).
+        # Without this, /api/sync/status/live keeps reporting "running" forever
+        # for a session whose process no longer exists, since nothing else ever
+        # closes these rows out.
+        try:
+            cursor.execute('''
+                UPDATE sync_history
+                SET in_progress = 0,
+                    end_time = CURRENT_TIMESTAMP,
+                    status = 'interrupted'
+                WHERE in_progress = 1 AND end_time IS NULL
+            ''')
+            if cursor.rowcount:
+                logging.warning(
+                    f"Reconciled {cursor.rowcount} orphaned sync_history row(s) "
+                    "left in_progress by a previous process that didn't exit cleanly"
+                )
+        except sqlite3.OperationalError:
+            # Table may not exist yet on a brand new database; nothing to reconcile
+            pass
+
         # Overseerr users table - stores synced Overseerr users
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS overseerr_users (
