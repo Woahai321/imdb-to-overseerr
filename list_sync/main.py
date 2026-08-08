@@ -538,10 +538,11 @@ def process_media_item(item: Dict[str, Any], overseerr_client: OverseerrClient, 
 
     try:
         # Import Trakt search functions
-        from .providers.trakt import search_trakt_by_imdb_id, search_trakt_by_title
-        
+        from .providers.trakt import search_trakt_by_imdb_id, search_trakt_by_title, is_trakt_configured
+
         search_result = None
         match_method = None
+        trakt_configured = is_trakt_configured()
         
         # METHOD 1: Direct TMDB ID lookup (fastest, most reliable)
         if tmdb_id:
@@ -560,7 +561,9 @@ def process_media_item(item: Dict[str, Any], overseerr_client: OverseerrClient, 
                 logging.info(f"✅ SUCCESS: Direct TMDB ID lookup")
         
         # METHOD 2: IMDB ID → Trakt → TMDB ID
-        if not search_result and imdb_id:
+        if not search_result and imdb_id and not trakt_configured:
+            logging.info("⏭️  METHOD 2 skipped: Trakt not configured (no TRAKT_CLIENT_ID)")
+        elif not search_result and imdb_id:
             logging.info(f"🔍 METHOD 2: IMDB ID → Trakt → TMDB ID (IMDB: {imdb_id})")
             trakt_result = search_trakt_by_imdb_id(imdb_id)
             if trakt_result and trakt_result.get('tmdb_id'):
@@ -584,7 +587,9 @@ def process_media_item(item: Dict[str, Any], overseerr_client: OverseerrClient, 
                 logging.info(f"⚠️  WARNING: Trakt could not resolve IMDB ID {imdb_id} to TMDB ID")
         
         # METHOD 3: Title/Year → Trakt → TMDB ID
-        if not search_result:
+        if not search_result and not trakt_configured:
+            logging.info("⏭️  METHOD 3 skipped: Trakt not configured (no TRAKT_CLIENT_ID)")
+        elif not search_result:
             logging.info(f"🔍 METHOD 3: Title/Year → Trakt → TMDB ID")
             trakt_result = search_trakt_by_title(search_title, year, media_type)
             if trakt_result and trakt_result.get('tmdb_id'):

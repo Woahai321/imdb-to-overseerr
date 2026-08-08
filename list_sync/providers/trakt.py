@@ -66,6 +66,25 @@ def get_trakt_client_id() -> str:
     )
 
 
+def is_trakt_configured() -> bool:
+    """
+    Check whether a Trakt Client ID is configured, without raising.
+
+    Used to skip Trakt-dependent lookup methods (IMDB->TMDB, Title->TMDB)
+    entirely when Trakt isn't set up, instead of attempting a network call
+    that's guaranteed to fail. This also avoids tripping Trakt's rate
+    limiter on every single processed item when Trakt is simply unused.
+
+    Returns:
+        bool: True if a Trakt Client ID is available from config or env.
+    """
+    try:
+        get_trakt_client_id()
+        return True
+    except ValueError:
+        return False
+
+
 def get_trakt_special_items_limit() -> int:
     """
     Get the items limit for special Trakt lists.
