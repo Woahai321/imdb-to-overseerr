@@ -4,11 +4,109 @@ Letterboxd provider for ListSync.
 
 import logging
 import re
-from typing import List, Dict, Any
+import time
+from typing import List, Dict, Any, Optional
 
+import requests
 from seleniumbase import SB
 
 from . import register_provider, check_and_raise_if_cancelled, SyncCancelledException
+
+
+# Letterboxd film pages carry the film's TMDB ID. The outbound link in the film
+# footer is tagged with data-track-action, which tells it apart from any other
+# TMDB link on the page and says whether TMDB holds the entry as a movie.
+TMDB_LINK_PATTERN = re.compile(
+    r'href="https?://(?:www\.)?themoviedb\.org/(movie|tv)/(\d+)[^"]*"[^>]*data-track-action="TMDB"'
+)
+
+# Older Letterboxd markup only exposes the IDs as <body> attributes.
+TMDB_BODY_TYPE_PATTERN = re.compile(r'data-tmdb-type="(movie|tv)"')
+TMDB_BODY_ID_PATTERN = re.compile(r'data-tmdb-id="(\d+)"')
+
+TMDB_LOOKUP_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
+TMDB_LOOKUP_DELAY = 0.5  # Seconds to wait between film page requests
+TMDB_LOOKUP_TIMEOUT = 10
+
+
+def _extract_tmdb_id(page_source: str) -> Optional[int]:
+    """
+    Extract the TMDB movie ID from the HTML of a Letterboxd film page
+
+    Args:
+        page_source (str): HTML of a Letterboxd film page
+
+    Returns:
+        Optional[int]: TMDB movie ID, or None if the page has no usable movie ID
+    """
+    link_match = TMDB_LINK_PATTERN.search(page_source)
+    if link_match:
+        # Letterboxd carries some entries (mini-series, anthologies) against a TMDB
+        # TV record. Those IDs are not valid for a movie lookup, so skip them and
+        # let the existing matching methods handle the item.
+        return int(link_match.group(2)) if link_match.group(1) == "movie" else None
+
+    body_id_match = TMDB_BODY_ID_PATTERN.search(page_source)
+    body_type_match = TMDB_BODY_TYPE_PATTERN.search(page_source)
+    if body_id_match and (body_type_match is None or body_type_match.group(1) == "movie"):
+        return int(body_id_match.group(1))
+
+    return None
+
+
+def _resolve_tmdb_ids(media_items: List[Dict[str, Any]]) -> None:
+    """
+    Add a "tmdb_id" to each item by reading its Letterboxd film page
+
+    Film pages are fetched over plain HTTP rather than through the browser, so this
+    costs one small request per film instead of a full page load.
+
+    Items whose ID cannot be resolved are left as they are, so they fall back to the
+    existing title-based matching.
+
+    Args:
+        media_items (List[Dict[str, Any]]): Items to enrich, modified in place
+    """
+    resolvable = [item for item in media_items if item.get("slug")]
+    if not resolvable:
+        return
+
+    logging.info(f"Resolving TMDB IDs for {len(resolvable)} Letterboxd films...")
+    resolved = 0
+
+    with requests.Session() as session:
+        session.headers.update(TMDB_LOOKUP_HEADERS)
+
+        for idx, item in enumerate(resolvable):
+            if idx > 0:
+                check_and_raise_if_cancelled()
+                time.sleep(TMDB_LOOKUP_DELAY)
+
+            slug = item["slug"]
+            try:
+                response = session.get(f"https://letterboxd.com/film/{slug}/", timeout=TMDB_LOOKUP_TIMEOUT)
+
+                if response.status_code != 200:
+                    logging.warning(f"Could not load film page for '{slug}' (HTTP {response.status_code})")
+                    continue
+
+                tmdb_id = _extract_tmdb_id(response.text)
+                if tmdb_id:
+                    item["tmdb_id"] = tmdb_id
+                    resolved += 1
+                else:
+                    logging.warning(f"No TMDB movie ID found on film page for '{slug}'")
+
+            except requests.RequestException as e:
+                logging.warning(f"Failed to resolve TMDB ID for '{slug}': {str(e)}")
+
+    logging.info(f"Resolved TMDB IDs for {resolved}/{len(resolvable)} Letterboxd films")
 
 
 def _determine_media_type(title: str) -> str:
@@ -255,7 +353,10 @@ def fetch_letterboxd_list(list_id: str) -> List[Dict[str, Any]]:
                     break
             
             logging.info(f"Letterboxd list fetched successfully. Found {len(media_items)} items across {page} pages.")
-            return media_items
+
+        # Browser work is done - resolve TMDB IDs over plain HTTP
+        _resolve_tmdb_ids(media_items)
+        return media_items
     
     except SyncCancelledException:
         logging.warning(f"⚠️ Letterboxd list fetch cancelled by user - returning {len(media_items)} items fetched so far")
